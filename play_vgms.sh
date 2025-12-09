@@ -10,15 +10,6 @@ play_vgmFormats() (
         echo -e "\033[31m\$TMPDIR is missing\033[0m"
         return 1
     }
-    run_audio() (
-        eval "{ $1 } | \
-            mpv \
-                --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
-                --profile=\"vgm\" \
-                --input-ipc-server=$TMPDIR/mpv.sock \
-                --no-terminal - &"
-        # msg-level=... to hide yellow msgs
-    )
 
     local count=0
     local warningPrinted="false"
@@ -37,16 +28,18 @@ play_vgmFormats() (
                     "   --help, -h:\n" \
                     "       Shows this page\n" \
                     "   --headless, -hl:\n" \
-                    "       Runs this program in the background"
+                    "       Runs this program in the background\n" \
+                    "   --show-warnings, -w:\n" \
+                    "       Shows ffmpeg warnings"
                 return
             ;;
             @(--headless|-hl))
                 local isHeadless="true"
                 continue
             ;;
-            *)
-                echo -e "\033[33mInvalid argument '$arg' passed, quitting...\033[0m"
-                return 2
+            @(--show-warnings|-w))
+                local showWarnings="true"
+                continue
             ;;
         esac
 
@@ -56,6 +49,9 @@ play_vgmFormats() (
             local location="$TMPDIR/${arg/.*/}"
         elif [[ -d "$arg" ]] ;then # Checks if it even exists
             local location="$arg"
+        else
+            echo -e "\033[33mInvalid argument '$arg' passed, quitting...\033[0m"
+            return 2
         fi
     done
     if [[ -z "$location" ]] ;then
@@ -73,13 +69,31 @@ play_vgmFormats() (
     done
 
     if [[ "$isHeadless" == "true" ]] ;then
-        run_audio "$list"
+        if [[ "$showWarnings" == "true" ]] ;then
+            eval "{ $list } | \
+                mpv \
+                    --profile=\"vgm\" \
+                    --input-ipc-server=$TMPDIR/mpv.sock \
+                    --no-terminal - &"
+        else
+            eval "{ $list } | \
+                mpv \
+                    --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
+                    --profile=\"vgm\" \
+                    --input-ipc-server=$TMPDIR/mpv.sock \
+                    --no-terminal - &"
+            # msg-level=... to hide yellow msgs
+        fi
     else
-        eval "{ $list } | \
-            mpv \
-                --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
-                --profile=\"vgm\" -"
-        # msg-level=... to hide yellow msgs
+        if [[ "$showWarnings" == "true" ]] ;then
+            eval "{ $list } | mpv --profile=\"vgm\" -"
+        else
+            eval "{ $list } | \
+                mpv \
+                    --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
+                    --profile=\"vgm\" -"
+            # msg-level=... to hide yellow msgs
+        fi
     fi
 )
 play_vgmFormats $@
