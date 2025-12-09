@@ -31,17 +31,24 @@ play_vgmFormats() (
             }
             continue
         fi
-        if [[ "$arg" =~ ^(--help|-h) ]] ;then
-            echo -e "Play VGMs options:\n" \
-                "   --help, -h:\n" \
-                "       Shows this page\n" \
-                "   --headless, -hl:\n" \
-                "       Runs this program in the background"
-            return 0
-        elif [[ "$arg" =~ ^(--headless|-hl) ]] ;then
-            local isHeadless="true"
-            continue
-        fi
+        case "$arg" in
+            @(--help|-h))
+                echo -e "Play VGMs options:\n" \
+                    "   --help, -h:\n" \
+                    "       Shows this page\n" \
+                    "   --headless, -hl:\n" \
+                    "       Runs this program in the background"
+                return
+            ;;
+            @(--headless|-hl))
+                local isHeadless="true"
+                continue
+            ;;
+            *)
+                echo -e "\033[33mInvalid argument '$arg' passed, quitting...\033[0m"
+                return 2
+            ;;
+        esac
 
         # In case it's an archive
         if [[ $(7z l "$arg" &>/dev/null; echo $?) == 0 ]] ;then
@@ -49,9 +56,6 @@ play_vgmFormats() (
             local location="$TMPDIR/${arg/.*/}"
         elif [[ -d "$arg" ]] ;then # Checks if it even exists
             local location="$arg"
-        else
-            echo -e "\033[33mInvalid argument '$arg' passed, ignoring...\033[0m"
-            continue 2
         fi
     done
     if [[ -z "$location" ]] ;then
