@@ -208,7 +208,10 @@ play_midis() (
             echo -e "${Gray}Reading from file...$NORMAL"
             local oldWhileIndex=-2
             local whileIndex=-1
+            local currentLine=0
+            local totalLines="$(cat "$arg" | wc -l)"
             while read line ;do
+                let currentLine+=1
                 # Sees the 2 files needed on the line
                 [[ "$line" =~ $regexFilePath ]] && {
                     # Initially it waits.
@@ -216,15 +219,15 @@ play_midis() (
                     # it starts looking for something that isn't set already
                     # and adds it by itself in case of it missing
                     [[ "$oldWhileIndex" != -2 ]] && {
-                        [[ -z "${allConfigGains[$oldWhileIndex]}" ]] &&
+                        [[ -z "${allConfigGains[$whileIndex]}" ]] &&
                             allConfigGains+=(0.28)
-                        [[ -z "${allConfigSampleRates[$oldWhileIndex]}" ]] &&
+                        [[ -z "${allConfigSampleRates[$whileIndex]}" ]] &&
                             allConfigSampleRates+=(48000)
-                        [[ -z "${allConfigInterpolations[$oldWhileIndex]}" ]] &&
+                        [[ -z "${allConfigInterpolations[$whileIndex]}" ]] &&
                             allConfigInterpolations+=(4)
-                        [[ -z "${allConfigLoops[$oldWhileIndex]}" ]] &&
+                        [[ -z "${allConfigLoops[$whileIndex]}" ]] &&
                             allConfigLoops+=(0)
-                        [[ -z "${allConfigLoopCuts[$oldWhileIndex]}" ]] &&
+                        [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
                             allConfigLoopCuts+=()
                     }
                     allConfigFilePaths+=("${BASH_REMATCH[1]} ${BASH_REMATCH[2]}")
@@ -246,6 +249,8 @@ play_midis() (
                 # Sees it again for the sample rate
                 [[ "$line" =~ $regexSampleRates ]] && {
                     local configValue=${BASH_REMATCH[2]}
+                    #
+                    # Handy shortcuts
                     if [[ "$arg" == "max" ]] ;then
                         allConfigSampleRates+=(96000)
                         continue
@@ -299,6 +304,20 @@ play_midis() (
                 [[ "$line" =~ $regexLoopCuts ]] && {
                     local configValue=(${BASH_REMATCH[2]})
                     allConfigLoopCuts+=($configValue)
+                }
+                # Checks if something's missing even
+                # even before the file read ends
+                [[ "$currentLine" == "$totalLines" ]] && {
+                    [[ -z "${allConfigGains[$whileIndex]}" ]] &&
+                        allConfigGains+=(0.28)
+                    [[ -z "${allConfigSampleRates[$whileIndex]}" ]] &&
+                        allConfigSampleRates+=(48000)
+                    [[ -z "${allConfigInterpolations[$whileIndex]}" ]] &&
+                        allConfigInterpolations+=(4)
+                    [[ -z "${allConfigLoops[$whileIndex]}" ]] &&
+                        allConfigLoops+=(0)
+                    [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
+                        allConfigLoopCuts+=()
                 }
             done < "$arg"
         #
@@ -366,7 +385,6 @@ play_midis() (
     }
     local midi=""
     local soundfont=""
-    echo $pathPattern
     for f in $pathPattern ;do
         case "$f" in
             *.mid|*.mid=+([0-9]))
@@ -415,7 +433,7 @@ play_midis() (
         esac
     done
 
-    echo $list; exit
+    #echo $list; exit
     [[ -z "$list" ]] && {
         echo -e "${Yellow}Something is missing, forgot a soundfont/midi?${NORMAL}"
         return 1
@@ -429,25 +447,22 @@ play_midis() (
             eval "{ $list } | \
                 mpv \
                     --input-ipc-server=$TMPDIR/mpv.sock \
-                    --profile=fluidsynth \
                     --no-terminal - &"
         else
             eval "{ $list } | \
                 mpv \
                     --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
-                    --profile=fluidsynth \
                     --input-ipc-server=$TMPDIR/mpv.sock \
                     --no-terminal - &"
             # msg-level=... to hide yellow msgs
         fi
     else
         if [[ "$showWarnings" == "true" ]] ;then
-            eval "{ $list } | mpv --profile=fluidsynth -"
+            eval "{ $list } | mpv -"
         else
             eval "{ $list } | \
                 mpv \
-                    --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
-                    --profile=fluidsynth -"
+                    --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no -"
             # msg-level=... to hide yellow msgs
         fi
     fi
