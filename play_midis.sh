@@ -77,7 +77,11 @@ play_midis() (
                 local loopArg="true"
                 continue
             ;;
-            +([0-9]))
+            --profile|-p)
+                local profileArg="true"
+                continue
+            ;;
+            +([0-9.]))
                 # Checks for the number arguments
                 [[ ! -z "$gainArg" ]] && {
                     unset gainArg
@@ -108,9 +112,6 @@ play_midis() (
                 }
             ;;
             *)
-                # In case they're not set
-                [[ -z "$gain" ]] && local gain=0.28
-
                 [[ -z "$sampleRate" ]] &&
                 [[ ! -z "$sampleRateArg" ]] && {
                     #
@@ -129,21 +130,29 @@ play_midis() (
                     shopt -u nocasematch
                 }
 
+                [[ ! -z "$profileArg" ]] && {
+                    unset profileArg
+                    local mpvProfiles="--profile=$arg"
+                    continue
+                }
                 [[ ! -z "$sampleRateArg" ]] ||
                 [[ ! -z "$gainArg" ]] && {
                     echo -e "${Red}Missing argument, quitting...$NORMAL"
                     return 1
                 }
-                [[ -z "$sampleRate" ]] && local sampleRate=48000
-                [[ -z "$interpolation" ]] && local interpolation=4
-                # For when there's only --loop
-                [[ -z "$loop" ]] && [[ ! -z "$loopArg" ]] &&
-                    local loop="1"
-                # Default for loops
-                [[ -z "$loop" ]] && [[ -z "$loopArg" ]] &&
-                    local loop="0"
             ;;
         esac
+        # In case they're not set
+        [[ -z "$gain" ]] && local gain=0.28
+        [[ -z "$sampleRate" ]] && local sampleRate=48000
+        [[ -z "$interpolation" ]] && local interpolation=4
+        # For when there's only --loop
+        [[ -z "$loop" ]] && [[ ! -z "$loopArg" ]] &&
+            local loop="1"
+        # Default for loops
+        [[ -z "$loop" ]] && [[ -z "$loopArg" ]] &&
+            local loop="0"
+
         # Checks the argument for the interpolation option
         [[ ! -z "$interpolationArg" ]] && {
             shopt -s nocasematch
@@ -447,22 +456,25 @@ play_midis() (
             eval "{ $list } | \
                 mpv \
                     --input-ipc-server=$TMPDIR/mpv.sock \
+                    $mpvProfiles \
                     --no-terminal - &"
         else
             eval "{ $list } | \
                 mpv \
                     --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
+                    $mpvProfiles \
                     --input-ipc-server=$TMPDIR/mpv.sock \
                     --no-terminal - &"
             # msg-level=... to hide yellow msgs
         fi
     else
         if [[ "$showWarnings" == "true" ]] ;then
-            eval "{ $list } | mpv -"
+            eval "{ $list } | mpv $mpvProfiles -"
         else
             eval "{ $list } | \
                 mpv \
-                    --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no -"
+                    --msg-level=ffmpeg/view=no,ffmpeg/audio=no,ffmpeg/demuxer=no \
+                    $mpvProfiles -"
             # msg-level=... to hide yellow msgs
         fi
     fi
