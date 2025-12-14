@@ -1,4 +1,5 @@
 #!/bin/bash
+#shellcheck disable=SC2004,SC2219
 shopt -s extglob
 play_midis() (
     # --------------------- Per i colori --
@@ -11,7 +12,7 @@ play_midis() (
     local NORMAL="${esc}0m"
     # ------------------------------------
     # Error if nothing has been given
-    [[ -z $@ ]] && {
+    [[ -z $* ]] && {
         echo -e "${Red}No arguments passed, quitting...${NORMAL}"
         return 2
     }
@@ -20,7 +21,9 @@ play_midis() (
         return 1
     }
 
-    for arg in $@ ;do
+    local ia=0
+    for arg in "$@" ;do
+        let ia+=1
         case "$arg" in
             --help|-h)
                 echo -e "Play midis options:\n" \
@@ -32,6 +35,11 @@ play_midis() (
                     "       Runs this program in the background\n" \
                     "   --loop, -l\n" \
                     "       Loop each songs n amount of times\n" \
+                    "   --profile, -p:\n" \
+                    "       Add custom profiles to mpv\n" \
+                    "   --index, -i:\n" \
+                    "       Skip to index of playlist\n" \
+                    "       (Negative index are allowed, e.g -1 means penultimate)\n" \
                     "   --gain, -g:\n" \
                     "       Adjust gain\n" \
                     "   --sample-rate, -r:\n" \
@@ -39,7 +47,7 @@ play_midis() (
                     "           any number between:\n" \
                     "           • 8000, lowest\n" \
                     "           • 96000, max\n" \
-                    "   --interpolation, -i:\n" \
+                    "   --interpolation, -ip:\n" \
                     "       Change interpolation method\n" \
                     "           0, none\n" \
                     "           1, linear\n" \
@@ -69,7 +77,7 @@ play_midis() (
                 local sampleRateArg="true"
                 continue
             ;;
-            --interpolation|-i)
+            --interpolation|-ip)
                 local interpolationArg="true"
                 continue
             ;;
@@ -81,7 +89,11 @@ play_midis() (
                 local profileArg="true"
                 continue
             ;;
-            +([0-9.]))
+            --index|-i)
+                local indexArg="true"
+                continue
+            ;;
+            +([0-9.-]))
                 # Checks for the number arguments
                 [[ ! -z "$gainArg" ]] && {
                     unset gainArg
@@ -105,9 +117,17 @@ play_midis() (
                     fi
                     continue
                 }
-                [[ ! -z "$loopArg" ]] && {
-                    let loop+="$arg"
+                [[ ! -z "$loopArg" ]] &&
+                ! (( $arg < 0 )) && {
+                    local loop="$arg"
                     unset loopArg
+                    continue
+                }
+                [[ ! -z "$indexArg" ]] &&
+                [[ -z "$index" ]] && {
+                    local index=$arg
+                    (( $arg < 0 )) && let index=$arg+1
+                    (( $arg == 0 )) && local index="1"
                     continue
                 }
             ;;
@@ -152,6 +172,7 @@ play_midis() (
         # Default for loops
         [[ -z "$loop" ]] && [[ -z "$loopArg" ]] &&
             local loop="0"
+        [[ -z "$index" ]] && local index=1
 
         # Checks the argument for the interpolation option
         [[ ! -z "$interpolationArg" ]] && {
@@ -187,17 +208,27 @@ play_midis() (
         }
 
         # In case it's an archive
-        if [[ $(7z l "$arg" &>/dev/null; echo $?) == 0 ]] ;then
-            7z x "$1" -o"$TMPDIR/${arg/.*/}"
+        if [[ -f "$arg" ]] &&
+        [[ $(7z l "$arg" &>/dev/null; echo $?) == 0 ]] ;then
+            7z x "$arg" -o"$TMPDIR/${arg/.*/}"
             local location="$TMPDIR/${arg/.*/}"
+            continue
         elif [[ -d "$arg" ]] ;then
             # Checks if it even exists
             # and it's directory
             local location="$arg"
+            continue
         elif [[ -f "$arg" ]] && [[ "$arg" =~ (.mid|.sf2)$ ]] ;then
             # User provided list
             local location="user provided files"
-            local fileList+=("$arg")
+            let previousIa=$ia-1
+            [[ "$arg" == *.sf2 ]] &&
+            [[ "$(eval "echo \$$previousIa")" != *.mid ]] && {
+                echo -e "${Red}A soundfont must be preceeded by a midi file$NORMAL"
+                return 1
+            }
+            local usersFileList+=("$arg")
+            continue
         elif [[ -f "$arg" ]] && [[ "$arg" =~ (.cfg)$ ]] ;then
         #
         # —————— Start of .cfg file reader ——————
@@ -218,8 +249,9 @@ play_midis() (
             local oldWhileIndex=-2
             local whileIndex=-1
             local currentLine=0
-            local totalLines="$(cat "$arg" | wc -l)"
-            while read line ;do
+            local totalLines
+            totalLines="$(cat "$arg" | wc -l)"
+            while read -r line ;do
                 let currentLine+=1
                 # Sees the 2 files needed on the line
                 [[ "$line" =~ $regexFilePath ]] && {
@@ -239,16 +271,16 @@ play_midis() (
                         [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
                             allConfigLoopCuts+=()
                     }
-                    allConfigFilePaths+=("${BASH_REMATCH[1]} ${BASH_REMATCH[2]}")
                     let oldWhileIndex=$oldWhileIndex+1
                     let whileIndex=$whileIndex+1
+                    allConfigFilePaths+=("$whileIndex=${BASH_REMATCH[1]}=${BASH_REMATCH[2]}")
                     continue
                 }
                 # Sees a setting for the gain
                 [[ "$line" =~ $regexGains ]] && {
                     local configValue=${BASH_REMATCH[2]}
                     if [[ $(bc <<< "$configValue >= 0 && $configValue <= 10") == 1 ]] ;then
-                        allConfigGains+=($configValue)
+                        allConfigGains+=("$configValue")
                         continue
                     else
                         echo -e "${Red}Can't use that kind of gain$NORMAL"
@@ -268,7 +300,7 @@ play_midis() (
                         continue
                     fi
                     if (( $configValue >= 8000 )) && (( $configValue <= 96000 )) ;then
-                        allConfigSampleRates+=($configValue)
+                        allConfigSampleRates+=("$configValue")
                         continue
                     else
                         echo -e "${Red}Can't use that kind of sample-rate$NORMAL"
@@ -306,13 +338,13 @@ play_midis() (
                 }
                 # For the song loops
                 [[ "$line" =~ $regexLoops ]] && {
-                    local configValue=(${BASH_REMATCH[2]})
-                    allConfigLoops+=($configValue)
+                    local configValue="${BASH_REMATCH[2]}"
+                    allConfigLoops+=("$configValue")
                 }
                 # For where to cut at the end of a song
                 [[ "$line" =~ $regexLoopCuts ]] && {
-                    local configValue=(${BASH_REMATCH[2]})
-                    allConfigLoopCuts+=($configValue)
+                    local configValue="${BASH_REMATCH[2]}"
+                    allConfigLoopCuts+=("$configValue")
                 }
                 # Checks if something's missing even
                 # even before the file read ends
@@ -328,7 +360,8 @@ play_midis() (
                     [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
                         allConfigLoopCuts+=()
                 }
-            done < "$arg"
+        done < <(echo -e "$(cat "$arg")\n")
+        #    ↑ Pevents missing line at EOF ↑
         #
         # —————— End of .cfg file reader ——————
         #
@@ -340,7 +373,7 @@ play_midis() (
 
     addCommandToList() {
         local mix="'$midi' '$soundfont'"
-        for (( i=0; i<=$loop; i++ )) ;do
+        for (( il=0; il<=$loop; il++ )) ;do
             #
             # Using a cfg file
             #
@@ -375,28 +408,71 @@ play_midis() (
                   #    pipe:1 2>/dev/null
         done
     }
-    local pathPattern="${location%/}"/@(*.mid|*.sf2)
-    # User provided list of files
-    [[ ! -z "$fileList" ]] && pathPattern=${fileList[@]}
+    local listOfFiles=()
+    local listOfFilesIndexes=()
+    # Looks inside the provided folder/extracted archive directory for the files
+    while read -r lineOfFind ;do
+        [[ "$lineOfFind" == *.mid ]] && listOfFilesIndexes+=("$lineOfFind")
+        listOfFiles+=("$lineOfFind")
+    done < <(
+        [[ -z "$usersFileList" ]] &&
+        [[ -z "$useConfig" ]] &&
+            find "$location" -iname '*.mid' -or -iname '*.sf2'
+    )
+    # User provided files
+    [[ ! -z "$usersFileList" ]] && {
+        listOfFiles=("${usersFileList[@]}")
+        for ii in "${listOfFiles[@]}" ;do
+            [[ "$ii" == *.mid ]] && listOfFilesIndexes+=("$ii")
+        done
+    }
+    # User provided list of files inside a cfg file
     [[ "$useConfig" == "true" ]] && {
         # Loops the amount of songs and adds each file per song
-        # to the main array, "allFiles" which then is set
-        # to pathPattern for the next for loop below here
-        for (( i=0; i<${#allConfigFilePaths[@]}; i++ )) ;do
-            for s in ${allConfigFilePaths[$i]} ;do
-                # Done like this because this way
-                # it knows what index is in
-                # (see below for the IFS)
-                local allFiles+=("$s=$i")
-            done
+        # to the main array, "allFilesFromConfig" which then is set
+        # to listOfFiles for the next for loop below here
+        for s in "${allConfigFilePaths[@]}" ;do
+            OLDIFS=$IFS
+            IFS="="
+            set $s
+            # Done like this because this way
+            # it knows what index is in
+            # (see below for the IFS)
+            local allFilesFromConfig+=("$1=$2")
+            local allFilesFromConfig+=("$1=$3")
+            listOfFilesIndexes+=("$2")
+            IFS=$OLDIFS
         done
-        pathPattern=${allFiles[@]}
+        listOfFiles=("${allFilesFromConfig[@]}")
     }
     local midi=""
     local soundfont=""
-    for f in $pathPattern ;do
+    local if=0
+    for f in "${listOfFiles[@]}" ;do
+        # Skips to index
+        [[ ! -z "$indexArg" ]] && {
+            local actualF=$f
+            [[ ! -z "$useConfig" ]] && {
+                local OLDIFS=$IFS
+                IFS="="
+                set $actualF
+                actualF=$2
+                IFS=$OLDIFS
+            }
+            if [[ "${listOfFilesIndexes[$index-1]}" == "$actualF" ]] ;then
+                unset indexArg
+            elif [[ "$skipSf2" == "$actualF" ]] ;then
+                unset skipSf2
+                let if+=1
+                continue
+            else
+                let if+=1
+                skipSf2="${listOfFiles[$if]}"
+                continue
+            fi
+        }
         case "$f" in
-            *.mid|*.mid=+([0-9]))
+            *.mid)
                 midi="$f"
                 [[ "$useConfig" == "true" ]] && {
                     # In case it's a cfg file:
@@ -405,12 +481,12 @@ play_midis() (
                     #   plus how many loops to do
                     #
                     #   then it restores the IFS
-                    OLDIFS=$IFS
+                    local OLDIFS=$IFS
                     IFS="="
                     set $f
-                    midi="$1"
-                    indexOfConfigArray=$2
-                    loop=${allConfigLoops[$2]}
+                    midi="$2"
+                    indexOfConfigArray=$1
+                    loop=${allConfigLoops[$1]}
                     IFS=$OLDIFS
                 }
                 [[ -z "$soundfont" ]] && continue
@@ -418,16 +494,16 @@ play_midis() (
                 unset midi
                 unset soundfont
             ;;
-            *.sf2|*.sf2=+([0-9]))
+            *.sf2)
                 soundfont="$f"
                 [[ "$useConfig" == "true" ]] && {
                     # Same as before
-                    OLDIFS=$IFS
+                    local OLDIFS=$IFS
                     IFS="="
                     set $f
-                    soundfont="$1"
-                    indexOfConfigArray=$2
-                    loop=${allConfigLoops[$2]}
+                    soundfont="$2"
+                    indexOfConfigArray=$1
+                    loop=${allConfigLoops[$1]}
                     IFS=$OLDIFS
                 }
                 [[ -z "$midi" ]] && continue
@@ -435,7 +511,7 @@ play_midis() (
                 unset midi
                 unset soundfont
             ;;
-            "$pathPattern")
+            *)
                 echo -e "${Red}No compatible file found, quitting...${NORMAL}"
                 return 2
             ;;
@@ -479,4 +555,4 @@ play_midis() (
         fi
     fi
 )
-play_midis $@
+play_midis "$@"
