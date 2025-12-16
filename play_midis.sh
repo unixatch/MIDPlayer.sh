@@ -99,7 +99,7 @@ play_midis() (
                     unset gainArg
                     # bc for floating point numbers
                     # can't do without it
-                    if [[ $(bc <<< "$arg >= 0 && $arg <= 10") == 1 ]] ;then
+                    if [[ $(bc <<< "$arg >= 0 && $arg <= 800") == 1 ]] ;then
                         gain="$arg"
                     else
                         echo -e "${Red}Can't use that kind of gain$NORMAL"
@@ -109,7 +109,7 @@ play_midis() (
                 }
                 [[ ! -z "$sampleRateArg" ]] && {
                     unset sampleRateArg
-                    if (( $arg >= 8000 )) && (( $arg <= 96000 )) ;then
+                    if (( $arg >= 4000 )) && (( $arg <= 400000 )) ;then
                         sampleRate="$arg"
                     else
                         echo -e "${Red}Can't use that kind of sample-rate$NORMAL"
@@ -140,11 +140,11 @@ play_midis() (
                     shopt -s nocasematch
                     if [[ "$arg" == "max" ]] ;then
                         unset sampleRateArg
-                        sampleRate=96000
+                        sampleRate=400000
                         continue
                     elif [[ "$arg" == "lowest" ]] ;then
                         unset sampleRateArg
-                        sampleRate=8000
+                        sampleRate=4000
                         continue
                     fi
                     shopt -u nocasematch
@@ -163,7 +163,7 @@ play_midis() (
             ;;
         esac
         # In case they're not set
-        [[ -z "$gain" ]] && local gain=0.28
+        [[ -z "$gain" ]] && local gain=30
         [[ -z "$sampleRate" ]] && local sampleRate=48000
         [[ -z "$interpolation" ]] && local interpolation=4
         # For when there's only --loop
@@ -188,19 +188,29 @@ play_midis() (
                     unset interpolationArg
                     continue
                 ;;
-                fourthorder|4)
+                cubicSpline|cubic-spline|2)
+                    interpolation=2
+                    unset interpolationArg
+                    continue
+                ;;
+                lagrange|3)
+                    interpolation=3
+                    unset interpolationArg
+                    continue
+                ;;
+                newtonPolynomial|newton-polynomial|4)
                     interpolation=4
                     unset interpolationArg
                     continue
                 ;;
-                seventhorder|7)
-                    interpolation=7
+                modifiedGauss|modified-gauss|5)
+                    interpolation=5
                     unset interpolationArg
                     continue
                 ;;
                 *)
                     echo -e "${Yellow}Only available: ${NORMAL}\n" \
-                            "   ${Green}none[${NORMAL}0${Green}]$NORMAL, ${Green}linear[${NORMAL}1${Green}]$NORMAL, ${Green}fourthOrder[${NORMAL}4${Green}]$NORMAL, ${Green}seventhOrder[${NORMAL}7${Green}]$NORMAL"
+                        " ${Green}none[${NORMAL}0${Green}]$NORMAL, \n  ${Green}linear[${NORMAL}1${Green}]$NORMAL, \n  ${Green}cubicSpline[${NORMAL}2${Green}]$NORMAL, \n  ${Green}lagrange[${NORMAL}3${Green}]$NORMAL, \n  ${Green}newtonPolynomial[${NORMAL}4${Green}]$NORMAL, \n  ${Green}modifiedGauss[${NORMAL}5${Green}]$NORMAL"
                     return 2
                 ;;
             esac
@@ -242,7 +252,7 @@ play_midis() (
             local regexFilePath="(.*\.mid) (.*\.sf2)" \
                 regexGains="^(gain|g) ([0-9,.]+)$" \
                 regexSampleRates="^(sample-rate|r|sampleRate) ([0-9]+|max|lowest)$" \
-                regexInterpolations="^(interpolation|i) ([0-9]+|none|linear|fourthorder|seventhorder)$" \
+                regexInterpolations="^(interpolation|i) ([0-9]+|none|linear|modifiedGauss|modified-gauss|newtonPolynomial|newton-polynomial|lagrange|cubicSpline|cubic-spline)$" \
                 regexLoops="^(loop|l) ([0-9]+)$" \
                 regexLoopCuts="^(loop-cut|loopCut|lc) ([0-9]{2}:[0-9]{2}:[0-9]{2})$"
             echo -e "${Gray}Reading from file...$NORMAL"
@@ -261,7 +271,7 @@ play_midis() (
                     # and adds it by itself in case of it missing
                     [[ "$oldWhileIndex" != -2 ]] && {
                         [[ -z "${allConfigGains[$whileIndex]}" ]] &&
-                            allConfigGains+=(0.28)
+                            allConfigGains+=(30)
                         [[ -z "${allConfigSampleRates[$whileIndex]}" ]] &&
                             allConfigSampleRates+=(48000)
                         [[ -z "${allConfigInterpolations[$whileIndex]}" ]] &&
@@ -279,7 +289,7 @@ play_midis() (
                 # Sees a setting for the gain
                 [[ "$line" =~ $regexGains ]] && {
                     local configValue=${BASH_REMATCH[2]}
-                    if [[ $(bc <<< "$configValue >= 0 && $configValue <= 10") == 1 ]] ;then
+                    if [[ $(bc <<< "$configValue >= 0 && $configValue <= 800") == 1 ]] ;then
                         allConfigGains+=("$configValue")
                         continue
                     else
@@ -293,13 +303,13 @@ play_midis() (
                     #
                     # Handy shortcuts
                     if [[ "$arg" == "max" ]] ;then
-                        allConfigSampleRates+=(96000)
+                        allConfigSampleRates+=(400000)
                         continue
                     elif [[ "$arg" == "lowest" ]] ;then
-                        allConfigSampleRates+=(8000)
+                        allConfigSampleRates+=(4000)
                         continue
                     fi
-                    if (( $configValue >= 8000 )) && (( $configValue <= 96000 )) ;then
+                    if (( $configValue >= 4000 )) && (( $configValue <= 400000 )) ;then
                         allConfigSampleRates+=("$configValue")
                         continue
                     else
@@ -320,17 +330,25 @@ play_midis() (
                             allConfigInterpolations+=(1)
                             continue
                         ;;
-                        fourthorder|4)
+                        cubicSpline|cubic-spline|2)
+                            allConfigInterpolations+=(2)
+                            continue
+                        ;;
+                        lagrange|3)
+                            allConfigInterpolations+=(3)
+                            continue
+                        ;;
+                        newtonPolynomial|newton-polynomial|4)
                             allConfigInterpolations+=(4)
                             continue
                         ;;
-                        seventhorder|7)
-                            allConfigInterpolations+=(7)
+                        modifiedGauss|modified-gauss|5)
+                            allConfigInterpolations+=(5)
                             continue
                         ;;
                         *)
                             echo -e "${Yellow}Only available: ${NORMAL}\n" \
-                                    "   ${Green}none[${NORMAL}0${Green}]$NORMAL, ${Green}linear[${NORMAL}1${Green}]$NORMAL, ${Green}fourthOrder[${NORMAL}4${Green}]$NORMAL, ${Green}seventhOrder[${NORMAL}7${Green}]$NORMAL"
+                                " ${Green}none[${NORMAL}0${Green}]$NORMAL, \n  ${Green}linear[${NORMAL}1${Green}]$NORMAL, \n  ${Green}cubicSpline[${NORMAL}2${Green}]$NORMAL, \n  ${Green}lagrange[${NORMAL}3${Green}]$NORMAL, \n  ${Green}newtonPolynomial[${NORMAL}4${Green}]$NORMAL, \n  ${Green}modifiedGauss[${NORMAL}5${Green}]$NORMAL"
                             return 2
                         ;;
                     esac
@@ -350,7 +368,7 @@ play_midis() (
                 # even before the file read ends
                 [[ "$currentLine" == "$totalLines" ]] && {
                     [[ -z "${allConfigGains[$whileIndex]}" ]] &&
-                        allConfigGains+=(0.28)
+                        allConfigGains+=(30)
                     [[ -z "${allConfigSampleRates[$whileIndex]}" ]] &&
                         allConfigSampleRates+=(48000)
                     [[ -z "${allConfigInterpolations[$whileIndex]}" ]] &&
@@ -381,24 +399,28 @@ play_midis() (
                 #
                 # au is the only format that works here
                 #                             ↓
-                list+="fluidsynth \
-                           --sample-rate ${allConfigSampleRates[$indexOfConfigArray]} \
+                list+="timidity \
+                           --sampling-freq ${allConfigSampleRates[$indexOfConfigArray]} \
                            --quiet \
-                           --audio-file-type au \
-                           --fast-render - \
-                           --gain ${allConfigGains[$indexOfConfigArray]} \
-                           --load-config <(echo 'interp ${allConfigInterpolations[$indexOfConfigArray]}') \
-                           $mix 2>/dev/null; "
+                           --output-mode w \
+                           --output-file - \
+                           -A${allConfigGains[$indexOfConfigArray]} \
+                           --config-string 'soundfont $soundfont' \
+                           --resample ${allConfigInterpolations[$indexOfConfigArray]} \
+                           --interpolation gauss \
+                           $midi 2>/dev/null; "
                 continue
             }
-            list+="fluidsynth \
-                       --sample-rate $sampleRate \
+            list+="timidity \
+                       --sampling-freq $sampleRate \
                        --quiet \
-                       --audio-file-type au \
-                       --fast-render - \
-                       --gain $gain \
-                       --load-config <(echo 'interp $interpolation') \
-                       $mix 2>/dev/null; "
+                       --output-mode w \
+                       --output-file - \
+                       -A$gain \
+                       --config-string 'soundfont $soundfont' \
+                       --resample $interpolation \
+                       --interpolation gauss \
+                       $midi 2>/dev/null; "
                   # ffmpeg \
                   #    -hide_banner \
                   #    -i - \
