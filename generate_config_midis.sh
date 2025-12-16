@@ -73,6 +73,7 @@ generate_config() (
                         echo "# Auto-generated file by generate_config_midis.sh"
                     } >> "$fileConfigName"
                 }
+                duration="$(get_duration_midis.sh -e -d "$midi" "$f")"
                 {
                     echo "$midi $f"
                     echo "interpolation 4"
@@ -80,6 +81,7 @@ generate_config() (
                     echo "gain 30"
                     echo "loop 0"
                     echo "loop-cut-start 0"
+                    echo "loop-cut-end $duration"
                     echo ""
                 } >> "$fileConfigName"
                 unset midi
