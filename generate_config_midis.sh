@@ -1,9 +1,8 @@
 #!/bin/bash
 #shellcheck disable=SC2004,SC2219
 shopt -s extglob
-set -e
 
-get_duration_midis() (
+generate_config() (
     # Error if nothing has been given
     [[ -z $* ]] && {
         echo -e "\033[31mNo arguments passed, quitting...\033[0m"
@@ -22,16 +21,15 @@ get_duration_midis() (
                 "       Shows this help page\n"//
             return 0
         fi
+        if [[ "$arg" == @(--quiet|-q) ]] ;then
+            local quiet="true"
+            continue
+        fi
         if [[ -d "$arg" ]] ;then
-            local location="${1%/}"
+            local location="${arg%/}"
             continue
         else
             local location="."
-            continue
-        fi
-        if [[ -f "$arg" ]] &&
-        [[ "$arg" =~ (.mid|.sf2)$ ]] ;then
-            local listOfFiles+=("$arg")
             continue
         fi
     done
@@ -49,6 +47,18 @@ get_duration_midis() (
     [[ ! -z "$listOfFiles" ]] && list=("${listOfFiles[@]}")
     local midi=""
     local firstTime="true"
+    cd "$location" || exit 1
+    local fileConfigName="config.cfg"
+    [[ $(echo *.cfg | grep --quiet "config[0-9]*.cfg"; echo $?) == 0 ]] && {
+        # In case there's already a config,
+        # don't override it and create a new one
+        possibleNumber=$(
+            echo *.cfg \
+            | sed 's/.*g\([0-9]*\).cfg/\1/g'
+        )
+        let possibleNumber+=1
+        fileConfigName="${fileConfigName%.cfg}$possibleNumber.cfg"
+    }
     for f in "${list[@]}" ;do
         case "$f" in
             *.mid)
@@ -56,25 +66,25 @@ get_duration_midis() (
                 continue
             ;;
             *.sf2)
+                [[ -z "$quiet" ]] && echo "Adding ${midi%.mid}"
                 [[ "$firstTime" == "true" ]] && {
                     unset firstTime
                     {
                         echo "# Auto-generated file by generate_config_midis.sh"
-                    } >> "config.cfg"
+                    } >> "$fileConfigName"
                 }
                 {
                     echo "$midi $f"
                     echo "interpolation 4"
                     echo "sample-rate 48000"
-                    echo "gain 70"
+                    echo "gain 30"
                     echo "loop 0"
                     echo "loop-cut-start 0"
-                    echo "loop-cut-end"
                     echo ""
-                } >> "config.cfg"
+                } >> "$fileConfigName"
                 unset midi
             ;;
         esac
     done
 )
-get_duration_midis "$@"
+generate_config "$@"
