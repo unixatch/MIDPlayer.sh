@@ -1,7 +1,6 @@
 #!/bin/bash
 #shellcheck disable=SC2004,SC2219
 shopt -s extglob
-set -e
 
 get_duration_midis() (
     # Error if nothing has been given
@@ -28,6 +27,10 @@ get_duration_midis() (
             local onlyEssentials="true"
             continue
         fi
+        if [[ "$arg" == @(--only-duration|-d) ]] ;then
+            local onlyDuration="true"
+            continue
+        fi
         if [[ -f "$arg" ]] &&
         [[ $(7z l "$arg" &>/dev/null; echo $?) == 0 ]] ;then
             7z x "$arg" -o"$TMPDIR/${arg/.*/}"
@@ -35,10 +38,7 @@ get_duration_midis() (
             continue
         fi
         if [[ -d "$arg" ]] ;then
-            local location="${1%/}"
-            continue
-        else
-            local location="."
+            local location="${arg%/}"
             continue
         fi
         if [[ -f "$arg" ]] &&
@@ -47,6 +47,11 @@ get_duration_midis() (
             continue
         fi
     done
+    [[ "$location" == "" ]] &&
+    [[ -z "$listOfFiles" ]] && {
+        echo -e "\033[31;1mA file or folder is required\033[0m"
+        return 1
+    }
     local list=()
     [[ -z "$onlyEssentials" ]] && echo "$location"/:
     while read -r lineOfFind ;do
@@ -88,6 +93,9 @@ get_duration_midis() (
                 local durationInS+=("$(qalc --terse "$duration to seconds") +")
                 if [[ -z "$onlyEssentials" ]] ;then
                     echo "  $(basename "${midi%.mid}") —→ $duration"
+                elif [[ ! -z "$onlyDuration" ]] &&
+                     [[ ! -z "$onlyEssentials" ]] ;then
+                    echo "$duration"
                 else
                     echo "$(basename "${midi%.mid}") $duration"
                 fi
