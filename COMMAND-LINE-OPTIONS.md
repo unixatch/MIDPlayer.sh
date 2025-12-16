@@ -1,37 +1,61 @@
 **file.mid, file.sf2, an archive or folder**:
-    Required to run the script properly
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Required to run the script properly
 
 **--help, -h**:
-    Shows this page
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Shows this page
 
 **--headless, -hl**:
-    Runs this program in the background
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Runs this program in the background
 
 **--loop, -l**:
-    Loop each songs n amount of times
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Loop each songs n amount of times
 
 **--profile, -p**:
-    Add custom profiles to mpv
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Add custom profiles to mpv
 
 **--index, -i**:
-    Skip to index of playlist
-    (Negative index are allowed, e.g -1 means penultimate)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Skip to index of playlist
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(Negative index are allowed, e.g -1 means penultimate)
 
 **--gain, -g**:
-    Adjust gain
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Adjust gain
 
 **--sample-rate, -r**:
-    Change sample rate
-        any number between:
-        - *4000*, lowest
-        - *400000*, max
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Change sample rate, any number between:
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *4000*, lowest
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *400000*, max
 
 **--interpolation, -ip**:
-    Change interpolation method
-        0, none
-        1, linear
-        4, fourthOrder
-        7, seventhOrder
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Change interpolation method
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0, none
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1, linear
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2,cubicSpline,cubic-spline
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;3, lagrange
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;4,newtonPolynomial,newton-polynomial
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;5,modifiedGauss,modified-gauss
 
 **--show-warnings, -w**:
-    Shows ffmpeg warnings
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Shows ffmpeg warnings

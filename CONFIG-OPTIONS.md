@@ -1,20 +1,31 @@
 **file.mid file.sf2**:
-    Necessary to load the config file correctly
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Necessary to load the config file correctly
 
 **interpolation,i**:
-    Changes interpolation, these are the one you can use:
-    - *none|0*;
-    - *linear|1*;
-    - *cubicSpline|cubic-spline|2*;
-    - *lagrange|3*;
-    - *newtonPolynomial|newton-polynomial|4*;
-    - *modifiedGauss|modified-gauss|5*;
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Changes interpolation, these are the one you can use:
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *none|0*;
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *linear|1*;
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *cubicSpline|cubic-spline|2*;
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *lagrange|3*;
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *newtonPolynomial|newton-polynomial|4*;
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- *modifiedGauss|modified-gauss|5*;
 
 **gain,g**:
-    Adjust gain value, can go from _0_ to _800_
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Adjust gain value, can go from _0_ to _800_
 
 **sample-rate,sampleRate,r**:
-    Changes sample rate, can go from _4000_ to _400000_
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Changes sample rate, can go from _4000_ to _400000_
 
 **loop,l**:
-    How many loops should be played, 0 to any number
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;How many loops should be played, 0 to any number
