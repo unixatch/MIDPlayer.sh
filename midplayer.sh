@@ -33,6 +33,8 @@ play_midis() (
                     "       Shows this page\n" \
                     "   --headless, -hl:\n" \
                     "       Runs this program in the background\n" \
+                    "   --show-warnings, -w:\n" \
+                    "       Shows ffmpeg warnings\n"
                     "   --loop, -l\n" \
                     "       Loop each songs n amount of times\n" \
                     "   --profile, -p:\n" \
@@ -41,20 +43,20 @@ play_midis() (
                     "       Skip to index of playlist\n" \
                     "       (Negative index are allowed, e.g -1 means penultimate)\n" \
                     "   --gain, -g:\n" \
-                    "       Adjust gain\n" \
+                    "       Adjust gain from 0 to 800\n" \
                     "   --sample-rate, -r:\n" \
                     "       Change sample rate\n" \
                     "           any number between:\n" \
-                    "           • 8000, lowest\n" \
-                    "           • 96000, max\n" \
+                    "           • 4000, lowest\n" \
+                    "           • 400000, max\n" \
                     "   --interpolation, -ip:\n" \
                     "       Change interpolation method\n" \
                     "           0, none\n" \
                     "           1, linear\n" \
-                    "           4, fourthOrder\n" \
-                    "           7, seventhOrder\n" \
-                    "   --show-warnings, -w:\n" \
-                    "       Shows ffmpeg warnings\n"
+                    "           2, cubicSpline\n" \
+                    "           3, lagrange\n" \
+                    "           4, newtonPolynomial\n" \
+                    "           5, modifiedGauss\n"
                 return
             ;;
             --headless|-hl)
@@ -398,8 +400,8 @@ play_midis() (
             #
             [[ "$useConfig" == "true" ]] && {
                 #
-                # au is the only format that works here
-                #                             ↓
+                # wav is the only format that works here
+                #                        ↓
                 list+="timidity \
                            --sampling-freq ${allConfigSampleRates[$indexOfConfigArray]} \
                            --quiet \
