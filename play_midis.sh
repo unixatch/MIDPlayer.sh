@@ -2,7 +2,7 @@
 #shellcheck disable=SC2004,SC2219
 shopt -s extglob
 play_midis() (
-    # --------------------- Per i colori --
+    # --------------------- Colors --
     local esc="\033["
 
     local Green="${esc}32m"
@@ -27,7 +27,7 @@ play_midis() (
         case "$arg" in
             --help|-h)
                 echo -e "Play midis options:\n" \
-                    "   file.mid, file.sf2 or folder:\n" \
+                    "   file.mid, file.sf2, an archive or folder:\n" \
                     "       Required to run the script properly\n" \
                     "   --help, -h:\n" \
                     "       Shows this page\n" \
@@ -54,7 +54,7 @@ play_midis() (
                     "           4, fourthOrder\n" \
                     "           7, seventhOrder\n" \
                     "   --show-warnings, -w:\n" \
-                    "       Shows ffmpeg warnings"
+                    "       Shows ffmpeg warnings\n"
                 return
             ;;
             --headless|-hl)
@@ -263,6 +263,8 @@ play_midis() (
             totalLines="$(cat "$arg" | wc -l)"
             while read -r line ;do
                 let currentLine+=1
+                #  this is weird but it works ↓
+                [[ "$line" == @( *|#*|$(echo -e "\n")) ]] && continue
                 # Sees the 2 files needed on the line
                 [[ "$line" =~ $regexFilePath ]] && {
                     # Initially it waits.
@@ -279,10 +281,10 @@ play_midis() (
                         [[ -z "${allConfigLoops[$whileIndex]}" ]] &&
                             allConfigLoops+=(0)
                         [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
-                            allConfigLoopCuts+=()
+                            allConfigLoopCutsStart+=(0)
                     }
-                    let oldWhileIndex=$oldWhileIndex+1
-                    let whileIndex=$whileIndex+1
+                    let oldWhileIndex+=1
+                    let whileIndex+=1
                     allConfigFilePaths+=("$whileIndex=${BASH_REMATCH[1]}=${BASH_REMATCH[2]}")
                     continue
                 }
@@ -378,8 +380,8 @@ play_midis() (
                     [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
                         allConfigLoopCuts+=()
                 }
-        done < <(echo -e "$(cat "$arg")\n")
-        #    ↑ Pevents missing line at EOF ↑
+            done < <(echo -e "$(cat "$arg")\n")
+        #       ↑ Pevents missing line at EOF ↑
         #
         # —————— End of .cfg file reader ——————
         #
@@ -390,7 +392,6 @@ play_midis() (
     done
 
     addCommandToList() {
-        local mix="'$midi' '$soundfont'"
         for (( il=0; il<=$loop; il++ )) ;do
             #
             # Using a cfg file
@@ -439,7 +440,11 @@ play_midis() (
     done < <(
         [[ -z "$usersFileList" ]] &&
         [[ -z "$useConfig" ]] &&
-            find "$location" -iname '*.mid' -or -iname '*.sf2'
+            find "$location" \
+                -maxdepth 1 \
+                -iname '*.mid' \
+                -or \
+                -iname '*.sf2'
     )
     # User provided files
     [[ ! -z "$usersFileList" ]] && {
