@@ -1,8 +1,9 @@
 #!/bin/bash
+#shellcheck disable=SC2004,SC2219
 shopt -s extglob
 play_vgmFormats() (
     # Error if nothing has been given
-    [[ -z $@ ]] && {
+    [[ -z $* ]] && {
         echo -e "\033[33mNo arguments passed, quitting...\033[0m"
         return 2
     }
@@ -13,9 +14,9 @@ play_vgmFormats() (
 
     local count=0
     local warningPrinted="false"
-    for arg in $@ ;do
+    for arg in "$@" ;do
         let count+=1
-        if [[ $count > 2 ]] ;then # Ignores after 2nd argument
+        if [[ $count -gt 2 ]] ;then # Ignores after 2nd argument
             [[ "$warningPrinted" == "false" ]] && {
                 warningPrinted="true"
                 echo -e "\033[33mOnly 2 arguments are used\033[0m"
@@ -59,7 +60,7 @@ play_vgmFormats() (
         return 1
     fi
 
-    pathPattern="${location%/}"/@(*.vgz|*.vgm|*.cmf|*.dro)
+    pathPattern="${location%/}/@(*.vgz|*.vgm|*.cmf|*.dro)"
     for f in $pathPattern ;do
         if [[ "$f" == "$pathPattern" ]] ;then
             echo -e "\033[33mNo compatible file found, quitting...\033[0m"
@@ -96,4 +97,4 @@ play_vgmFormats() (
         fi
     fi
 )
-play_vgmFormats $@
+play_vgmFormats "$@"
