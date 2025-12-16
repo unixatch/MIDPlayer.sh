@@ -250,13 +250,15 @@ play_midis() (
                     allConfigInterpolations=() \
                     allConfigSampleRates=() \
                     allConfigLoops=() \
-                    allConfigLoopCuts=()
+                    allConfigLoopCutsStart=() \
+                    allConfigLoopCutsEnd=()
             local regexFilePath="(.*\.mid) (.*\.sf2)" \
                 regexGains="^(gain|g) ([0-9,.]+)$" \
                 regexSampleRates="^(sample-rate|r|sampleRate) ([0-9]+|max|lowest)$" \
                 regexInterpolations="^(interpolation|i) ([0-9]+|none|linear|modifiedGauss|modified-gauss|newtonPolynomial|newton-polynomial|lagrange|cubicSpline|cubic-spline)$" \
                 regexLoops="^(loop|l) ([0-9]+)$" \
-                regexLoopCuts="^(loop-cut|loopCut|lc) ([0-9]{2}:[0-9]{2}:[0-9]{2})$"
+                regexLoopCutsStart="^(loop-cut-start|loopCutStart|lcs) ([0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*|[0-9.]+)$"
+            regexLoopCutsEnd="^(loop-cut-end|loopCutEnd|lce) ([0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}[0-9.]+)*$"
             echo -e "${Gray}Reading from file...$NORMAL"
             local oldWhileIndex=-2
             local whileIndex=-1
@@ -282,8 +284,10 @@ play_midis() (
                             allConfigInterpolations+=(4)
                         [[ -z "${allConfigLoops[$whileIndex]}" ]] &&
                             allConfigLoops+=(0)
-                        [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
+                        [[ -z "${allConfigLoopCutsStart[$whileIndex]}" ]] &&
                             allConfigLoopCutsStart+=(0)
+                        [[ -z "${allConfigLoopCutsEnd[$whileIndex]}" ]] &&
+                            allConfigLoopCutsEnd+=("no")
                     }
                     let oldWhileIndex+=1
                     let whileIndex+=1
@@ -364,9 +368,25 @@ play_midis() (
                     allConfigLoops+=("$configValue")
                 }
                 # For where to cut at the end of a song
-                [[ "$line" =~ $regexLoopCuts ]] && {
+                [[ "$line" =~ $regexLoopCutsStart ]] && {
                     local configValue="${BASH_REMATCH[2]}"
-                    allConfigLoopCuts+=("$configValue")
+                    allConfigLoopCutsStart+=("$configValue")
+                }
+                [[ "$line" =~ $regexLoopCutsEnd ]] && {
+                    local configValue="${BASH_REMATCH[2]}"
+                    local possibleConfigValue="${BASH_REMATCH[3]}"
+                    [[ ! -z "$possibleConfigValue" ]] && {
+                        [[ $(command -v qalc &>/dev/null; echo $?) != 0 ]] && {
+                            echo -e "${Red}qalc needs to be installed for this calculation($configValue$possibleConfigValue)$NORMAL"
+                            return 1
+                        }
+                        local durationInS
+                        durationInS="$(qalc --terse "$configValue to s")"
+                        local reducedDuration
+                        reducedDuration="$(qalc --terse "$durationInS $possibleConfigValue s to time")"
+                        configValue=$reducedDuration
+                    }
+                    allConfigLoopCutsEnd+=("$configValue")
                 }
                 # Checks if something's missing even
                 # even before the file read ends
@@ -379,8 +399,10 @@ play_midis() (
                         allConfigInterpolations+=(4)
                     [[ -z "${allConfigLoops[$whileIndex]}" ]] &&
                         allConfigLoops+=(0)
-                    [[ -z "${allConfigLoopCuts[$whileIndex]}" ]] &&
-                        allConfigLoopCuts+=()
+                    [[ -z "${allConfigLoopCutsStart[$whileIndex]}" ]] &&
+                        allConfigLoopCutsStart+=(0)
+                    [[ -z "${allConfigLoopCutsEnd[$whileIndex]}" ]] &&
+                        allConfigLoopCutsEnd+=("no")
                 }
             done < <(echo -e "$(cat "$arg")\n")
         #       ↑ Pevents missing line at EOF ↑
@@ -394,11 +416,25 @@ play_midis() (
     done
 
     addCommandToList() {
+        local ffmpegCommandCopy=$ffmpegCommand
         for (( il=0; il<=$loop; il++ )) ;do
             #
             # Using a cfg file
             #
             [[ "$useConfig" == "true" ]] && {
+                [[ "$il" == "0" ]] && {
+                    ffmpegCommand=$(
+                        # shellcheck disable=SC2001
+                        echo "$ffmpegCommand" | sed 's/-ss [0-9:.]* //g'
+                    )
+                }
+                [[ "$il" -gt 0 ]] && ffmpegCommand=$ffmpegCommandCopy
+                [[ "$il" == "$loop" ]] && {
+                    ffmpegCommand=$(
+                        # shellcheck disable=SC2001
+                        echo "$ffmpegCommand" | sed 's/-to [0-9:.]* //g'
+                    )
+                }
                 #
                 # wav is the only format that works here
                 #                        ↓
@@ -411,7 +447,8 @@ play_midis() (
                            --config-string 'soundfont $soundfont' \
                            --resample ${allConfigInterpolations[$indexOfConfigArray]} \
                            --interpolation gauss \
-                           $midi 2>/dev/null; "
+                           $midi 2>/dev/null \
+                       $ffmpegCommand; "
                 continue
             }
             list+="timidity \
@@ -424,13 +461,6 @@ play_midis() (
                        --resample $interpolation \
                        --interpolation gauss \
                        $midi 2>/dev/null; "
-                  # ffmpeg \
-                  #    -hide_banner \
-                  #    -i - \
-                  #    -c:a copy \
-                  #    -to 00:01:10 \
-                  #    -f matroska \
-                  #    pipe:1 2>/dev/null
         done
     }
     local listOfFiles=()
@@ -533,7 +563,22 @@ play_midis() (
                     soundfont="$2"
                     indexOfConfigArray=$1
                     loop=${allConfigLoops[$1]}
+                    local loopCutStart="${allConfigLoopCutsStart[$1]}"
+                    local loopCutEnd="${allConfigLoopCutsEnd[$1]}"
                     IFS=$OLDIFS
+                    ffmpegCommand="| \
+                        ffmpeg \
+                            -hide_banner \
+                            -i - \
+                            -ss $loopCutStart \
+                            -c:a copy \
+                            -to $loopCutEnd \
+                            -f wav \
+                            pipe:1 2>/dev/null"
+                    [[ "$loopCutStart" == "0" ]] &&
+                    [[ ! "$loopCutEnd" =~ $regexLoopCutsEnd ]] && {
+                        unset ffmpegCommand
+                    }
                 }
                 [[ -z "$midi" ]] && continue
                 addCommandToList
