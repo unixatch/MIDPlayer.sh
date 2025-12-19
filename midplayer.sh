@@ -468,7 +468,7 @@ play_midis() (
                            --resample ${allConfigInterpolations[$indexOfConfigArray]} \
                            --interpolation gauss \
                            $midi 2>/dev/null \
-                       $ffmpegCommand; "
+                       $ffmpegCommand || exit 4; "
                 continue
             }
             list+="timidity \
@@ -480,7 +480,7 @@ play_midis() (
                        --config-string 'soundfont $soundfont' \
                        --resample $interpolation \
                        --interpolation gauss \
-                       $midi 2>/dev/null; "
+                       $midi 2>/dev/null || exit 4; "
         done
     }
     local listOfFiles=()
