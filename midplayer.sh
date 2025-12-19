@@ -258,13 +258,19 @@ play_midis() (
             # Range from 4000 to 400000
             local regexSampleRateRange="([5-8.][0-9.][0-9.][0-9.]|4[1-9.][0-9.][0-9.]|40[1-9.][0-9.]|400[0-9.]|9[0-8.][0-9.][0-9.]|99[0-8.][0-9.]|999[0-9.]|[2-8.][0-9.][0-9.][0-9.][0-9.]|1[1-9.][0-9.][0-9.][0-9.]|10[1-9.][0-9.][0-9.]|100[1-9.][0-9.]|1000[0-9.]|9[0-8.][0-9.][0-9.][0-9.]|99[0-8.][0-9.][0-9.]|999[0-8.][0-9.]|9999[0-9.]|[2-3.][0-9.][0-9.][0-9.][0-9.][0-9.]|1[1-9.][0-9.][0-9.][0-9.][0-9.]|10[1-9.][0-9.][0-9.][0-9.]|100[1-9.][0-9.][0-9.]|1000[1-9.][0-9.]|10000[0-9.]|40000[0-0.])$"
 
+            # All of these regexes check if there are 2 files
+            # before the option being searched, don't select more than
+            # $regexMaxLines and if the option isn't found,
+            # select at the very least the 2 files before the option
+            # so that the default values can be applied
+            local regexMaxLines="8"
             local regexFilePath="(.*\.mid) (.*\.sf2)" \
-                regexGains="^(.*.mid .*.sf2)(?:.*\n)*?(?:gain|g)( $regexGainRange)*" \
-                regexSampleRates="^(.*.mid .*.sf2)(?:.*\n)*?(?:sample-rate|r|sampleRate)( $regexSampleRateRange| max| lowest)*" \
-                regexInterpolations="^(.*.mid .*.sf2)(?:.*\n)*?(?:interpolation|i)( [0-5]| none| linear| modifiedGauss| modified-gauss| newtonPolynomial| newton-polynomial| lagrange| cubicSpline| cubic-spline)*" \
-                regexLoops="^(.*.mid .*.sf2)(?:.*\n)*?(?:loop|l)( [0-9]+)*" \
-                regexLoopCutsStart="^(.*.mid .*.sf2)(?:.*\n)*?(?:loop-cut-start|loopCutStart|lcs)( [0-9.]+)*"
-            regexLoopCutsEnd="^(.*.mid .*.sf2)(?:.*\n)*?(?:loop-cut-end|loopCutEnd|lce)( [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}[0-9.]+)*"
+                regexGains="^(.*.mid .*.sf2)(?:(?:.*\n){1,$regexMaxLines}(?:gain|g)( $regexGainRange)*)?" \
+                regexSampleRates="^(.*.mid .*.sf2)(?:(?:.*\n){1,$regexMaxLines}(?:sample-rate|r|sampleRate)( $regexSampleRateRange| max| lowest)*)?" \
+                regexInterpolations="^(.*.mid .*.sf2)(?:(?:.*\n){1,$regexMaxLines}(?:interpolation|i)( [0-5]| none| linear| modifiedGauss| modified-gauss| newtonPolynomial| newton-polynomial| lagrange| cubicSpline| cubic-spline)*)?" \
+                regexLoops="^(.*.mid .*.sf2)(?:(?:.*\n){1,$regexMaxLines}(?:loop|l)( [0-9]+)*)?" \
+                regexLoopCutsStart="^(.*.mid .*.sf2)(?:(?:.*\n){1,$regexMaxLines}(?:loop-cut-start|loopCutStart|lcs)( [0-9.]+)*)?"
+            regexLoopCutsEnd="^(.*.mid .*.sf2)(?:(?:.*\n){1,$regexMaxLines}(?:loop-cut-end|loopCutEnd|lce)( [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}[0-9.]+)*)?"
 
             echo -e "${Gray}Reading from file...$NORMAL"
             local fileConfig
@@ -418,20 +424,13 @@ play_midis() (
                         }
                     }'
             )"
-            # shellcheck disable=2206
-            allConfigFilePaths=($grepdFilePaths)
-            # shellcheck disable=2206
-            allConfigGains=($grepdGains)
-            # shellcheck disable=2206
-            allConfigSampleRates=($grepdSampleRates)
-            # shellcheck disable=2206
-            allConfigInterpolations=($grepdInterpolations)
-            # shellcheck disable=2206
-            allConfigLoops=($grepdLoops)
-            # shellcheck disable=2206
-            allConfigLoopCutsStart=($grepdLoopCutStarts)
-            # shellcheck disable=2206
-            allConfigLoopCutsEnd=($grepdLoopCutEnds)
+            mapfile -t allConfigFilePaths <<< "$grepdFilePaths"
+            mapfile -t allConfigGains <<< "$grepdGains"
+            mapfile -t allConfigSampleRates <<< "$grepdSampleRates"
+            mapfile -t allConfigInterpolations <<< "$grepdInterpolations"
+            mapfile -t allConfigLoops <<< "$grepdLoops"
+            mapfile -t allConfigLoopCutsStart <<< "$grepdLoopCutStarts"
+            mapfile -t allConfigLoopCutsEnd <<< "$grepdLoopCutEnds"
         #
         # —————— End of .cfg file reader ——————
         #
@@ -464,23 +463,24 @@ play_midis() (
                            --output-mode w \
                            --output-file - \
                            -A${allConfigGains[$indexOfConfigArray]} \
-                           --config-string 'soundfont $soundfont' \
+                           --config-string \"soundfont '$soundfont'\" \
                            --resample ${allConfigInterpolations[$indexOfConfigArray]} \
                            --interpolation gauss \
-                           $midi 2>/dev/null \
+                           '$midi' 2>/dev/null \
                        $ffmpegCommand || exit 4; "
                 continue
             }
+            # shellcheck disable=2089
             list+="timidity \
                        --sampling-freq $sampleRate \
                        --quiet \
                        --output-mode w \
                        --output-file - \
                        -A$gain \
-                       --config-string 'soundfont $soundfont' \
+                       --config-string \"soundfont '$soundfont'\" \
                        --resample $interpolation \
                        --interpolation gauss \
-                       $midi 2>/dev/null || exit 4; "
+                       '$midi' 2>/dev/null || exit 4; "
         done
     }
     local listOfFiles=()
@@ -505,9 +505,18 @@ play_midis() (
             [[ "$ii" == *.mid ]] && listOfFilesIndexes+=("$ii")
         done
     }
-    [[ ! -z "$useConfig" ]] && listOfFiles+=("${allConfigFilePaths[@]}")
+    [[ ! -z "$useConfig" ]] && {
+        listOfFiles+=("${allConfigFilePaths[@]}")
+        mapfile -t listOfFilesIndexes < <(
+            echo "${allConfigFilePaths[@]}" \
+                | sed -E 's/sf2 /sf2\\\n/g' \
+                | awk -F "=" '{print $2}' \
+                | sed -E 's/sf2\n/sf2 /g'
+        )
+    }
     local midi=""
     local soundfont=""
+    local finalRegexLoopCutEnd="[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*(-{1}[0-9.]+)*"
     for f in "${listOfFiles[@]}" ;do
         # Skips to index
         [[ ! -z "$indexArg" ]] && {
@@ -546,6 +555,7 @@ play_midis() (
             loop=${allConfigLoops[$1]}
             local loopCutStart="${allConfigLoopCutsStart[$1]}"
             local loopCutEnd="${allConfigLoopCutsEnd[$1]}"
+            IFS=$OLDIFS
             ffmpegCommand="| \
                 ffmpeg \
                     -hide_banner \
@@ -556,10 +566,9 @@ play_midis() (
                     -f wav \
                     pipe:1 2>/dev/null"
             [[ "$loopCutStart" == "0" ]] &&
-            [[ ! "$loopCutEnd" =~ $regexLoopCutsEnd ]] && {
+            [[ ! "$loopCutEnd" =~ $finalRegexLoopCutEnd ]] && {
                 unset ffmpegCommand
             }
-            IFS=$OLDIFS
             addCommandToList
             unset midi
             unset soundfont
