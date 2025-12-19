@@ -252,160 +252,186 @@ play_midis() (
                     allConfigLoops=() \
                     allConfigLoopCutsStart=() \
                     allConfigLoopCutsEnd=()
+            #                                       ↓ this is disgusting but it works ↓
+            # Range from 0 to 800
+            local regexGainRange="([0-9.]|[2-8.][0-9.]|1[0-9.]|9[0-9.]|[2-7.][0-9.][0-9.]|1[1-9.][0-9.]|10[0-9.]|80[0-0.])$"
+            # Range from 4000 to 400000
+            local regexSampleRateRange="([5-8.][0-9.][0-9.][0-9.]|4[1-9.][0-9.][0-9.]|40[1-9.][0-9.]|400[0-9.]|9[0-8.][0-9.][0-9.]|99[0-8.][0-9.]|999[0-9.]|[2-8.][0-9.][0-9.][0-9.][0-9.]|1[1-9.][0-9.][0-9.][0-9.]|10[1-9.][0-9.][0-9.]|100[1-9.][0-9.]|1000[0-9.]|9[0-8.][0-9.][0-9.][0-9.]|99[0-8.][0-9.][0-9.]|999[0-8.][0-9.]|9999[0-9.]|[2-3.][0-9.][0-9.][0-9.][0-9.][0-9.]|1[1-9.][0-9.][0-9.][0-9.][0-9.]|10[1-9.][0-9.][0-9.][0-9.]|100[1-9.][0-9.][0-9.]|1000[1-9.][0-9.]|10000[0-9.]|40000[0-0.])$"
+
             local regexFilePath="(.*\.mid) (.*\.sf2)" \
-                regexGains="^(gain|g) ([0-9,.]+)$" \
-                regexSampleRates="^(sample-rate|r|sampleRate) ([0-9]+|max|lowest)$" \
-                regexInterpolations="^(interpolation|i) ([0-9]+|none|linear|modifiedGauss|modified-gauss|newtonPolynomial|newton-polynomial|lagrange|cubicSpline|cubic-spline)$" \
-                regexLoops="^(loop|l) ([0-9]+)$" \
-                regexLoopCutsStart="^(loop-cut-start|loopCutStart|lcs) ([0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*|[0-9.]+)$"
-            regexLoopCutsEnd="^(loop-cut-end|loopCutEnd|lce) ([0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}[0-9.]+)*$"
+                regexGains="^(.*.mid .*.sf2)(?:.*\n)*?(?:gain|g)( $regexGainRange)*" \
+                regexSampleRates="^(.*.mid .*.sf2)(?:.*\n)*?(?:sample-rate|r|sampleRate)( $regexSampleRateRange| max| lowest)*" \
+                regexInterpolations="^(.*.mid .*.sf2)(?:.*\n)*?(?:interpolation|i)( [0-5]| none| linear| modifiedGauss| modified-gauss| newtonPolynomial| newton-polynomial| lagrange| cubicSpline| cubic-spline)*" \
+                regexLoops="^(.*.mid .*.sf2)(?:.*\n)*?(?:loop|l)( [0-9]+)*" \
+                regexLoopCutsStart="^(.*.mid .*.sf2)(?:.*\n)*?(?:loop-cut-start|loopCutStart|lcs)( [0-9.]+)*"
+            regexLoopCutsEnd="^(.*.mid .*.sf2)(?:.*\n)*?(?:loop-cut-end|loopCutEnd|lce)( [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}[0-9.]+)*"
+
             echo -e "${Gray}Reading from file...$NORMAL"
-            local oldWhileIndex=-2
-            local whileIndex=-1
-            local currentLine=0
-            local totalLines
-            totalLines="$(cat "$arg" | wc -l)"
-            while read -r line ;do
-                let currentLine+=1
-                #  this is weird but it works ↓
-                [[ "$line" == @( *|#*|$(echo -e "\n")) ]] && continue
-                # Sees the 2 files needed on the line
-                [[ "$line" =~ $regexFilePath ]] && {
-                    # Initially it waits.
-                    # When a new couple of files appear,
-                    # it starts looking for something that isn't set already
-                    # and adds it by itself in case of it missing
-                    [[ "$oldWhileIndex" != -2 ]] && {
-                        [[ -z "${allConfigGains[$whileIndex]}" ]] &&
-                            allConfigGains+=(30)
-                        [[ -z "${allConfigSampleRates[$whileIndex]}" ]] &&
-                            allConfigSampleRates+=(48000)
-                        [[ -z "${allConfigInterpolations[$whileIndex]}" ]] &&
-                            allConfigInterpolations+=(4)
-                        [[ -z "${allConfigLoops[$whileIndex]}" ]] &&
-                            allConfigLoops+=(0)
-                        [[ -z "${allConfigLoopCutsStart[$whileIndex]}" ]] &&
-                            allConfigLoopCutsStart+=(0)
-                        [[ -z "${allConfigLoopCutsEnd[$whileIndex]}" ]] &&
-                            allConfigLoopCutsEnd+=("no")
-                    }
-                    let oldWhileIndex+=1
-                    let whileIndex+=1
-                    allConfigFilePaths+=("$whileIndex=${BASH_REMATCH[1]}=${BASH_REMATCH[2]}")
-                    continue
-                }
-                # Sees a setting for the gain
-                [[ "$line" =~ $regexGains ]] && {
-                    local configValue=${BASH_REMATCH[2]}
-                    if [[ $(bc <<< "$configValue >= 0 && $configValue <= 800") == 1 ]] ;then
-                        allConfigGains+=("$configValue")
-                        continue
-                    else
-                        echo -e "${Red}Can't use that kind of gain$NORMAL"
-                        return 1
-                    fi
-                }
-                # Sees it again for the sample rate
-                [[ "$line" =~ $regexSampleRates ]] && {
-                    local configValue=${BASH_REMATCH[2]}
-                    #
-                    # Handy shortcuts
-                    if [[ "$arg" == "max" ]] ;then
-                        allConfigSampleRates+=(400000)
-                        continue
-                    elif [[ "$arg" == "lowest" ]] ;then
-                        allConfigSampleRates+=(4000)
-                        continue
-                    fi
-                    if (( $configValue >= 4000 )) && (( $configValue <= 400000 )) ;then
-                        allConfigSampleRates+=("$configValue")
-                        continue
-                    else
-                        echo -e "${Red}Can't use that kind of sample-rate$NORMAL"
-                        return 1
-                    fi
-                }
-                # Again for the interpolation
-                [[ "$line" =~ $regexInterpolations ]] && {
-                    local configValue=${BASH_REMATCH[2]}
-                    shopt -s nocasematch
-                    case "$configValue" in
-                        none|0)
-                            allConfigInterpolations+=(0)
-                            continue
-                        ;;
-                        linear|1)
-                            allConfigInterpolations+=(1)
-                            continue
-                        ;;
-                        cubicSpline|cubic-spline|2)
-                            allConfigInterpolations+=(2)
-                            continue
-                        ;;
-                        lagrange|3)
-                            allConfigInterpolations+=(3)
-                            continue
-                        ;;
-                        newtonPolynomial|newton-polynomial|4)
-                            allConfigInterpolations+=(4)
-                            continue
-                        ;;
-                        modifiedGauss|modified-gauss|5)
-                            allConfigInterpolations+=(5)
-                            continue
-                        ;;
-                        *)
-                            echo -e "${Yellow}Only available: ${NORMAL}\n" \
-                                " ${Green}none[${NORMAL}0${Green}]$NORMAL, \n  ${Green}linear[${NORMAL}1${Green}]$NORMAL, \n  ${Green}cubicSpline[${NORMAL}2${Green}]$NORMAL, \n  ${Green}lagrange[${NORMAL}3${Green}]$NORMAL, \n  ${Green}newtonPolynomial[${NORMAL}4${Green}]$NORMAL, \n  ${Green}modifiedGauss[${NORMAL}5${Green}]$NORMAL"
-                            return 2
-                        ;;
-                    esac
-                    shopt -u nocasematch
-                }
-                # For the song loops
-                [[ "$line" =~ $regexLoops ]] && {
-                    local configValue="${BASH_REMATCH[2]}"
-                    allConfigLoops+=("$configValue")
-                }
-                # For where to cut at the end of a song
-                [[ "$line" =~ $regexLoopCutsStart ]] && {
-                    local configValue="${BASH_REMATCH[2]}"
-                    allConfigLoopCutsStart+=("$configValue")
-                }
-                [[ "$line" =~ $regexLoopCutsEnd ]] && {
-                    local configValue="${BASH_REMATCH[2]}"
-                    local possibleConfigValue="${BASH_REMATCH[3]}"
-                    [[ ! -z "$possibleConfigValue" ]] && {
-                        [[ $(command -v qalc &>/dev/null; echo $?) != 0 ]] && {
-                            echo -e "${Red}qalc needs to be installed for this calculation($configValue$possibleConfigValue)$NORMAL"
-                            return 1
+            local fileConfig
+            fileConfig="$(cat "$arg")"
+            ased() (
+                # Advanced sed
+                "sed" \
+                    --regexp-extended \
+                    "$@"
+            )
+            local grepdFilePaths
+            grepdFilePaths="$(
+                echo "$fileConfig" \
+                    | "grep" --perl-regexp "$regexFilePath" \
+                    | awk '{
+                        substitution=gensub( \
+                            /(.*\.mid) (.*\.sf2)/,
+                            "\\1=\\2",
+                            "g",
+                            $0 \
+                        )
+                        print NR-1"="substitution
+                    }'
+            )"
+            grepdGains="$(
+                # shellcheck disable=2030
+                local defaultGain=30
+                echo "$fileConfig" \
+                    | pcre2grep \
+                        --multiline \
+                        --only-matching=1 \
+                        --only-matching=2 \
+                        "$regexGains" \
+                    | ased \
+                        --expression 's/.* ([0-9.]+)$/\1/' \
+                        --expression t \
+                        --expression "s/^.*\.mid .*\.sf2.*/$defaultGain/"
+            )"
+            grepdSampleRates="$(
+                local defaultSampleRate=48000
+                echo "$fileConfig" \
+                    | pcre2grep \
+                        --multiline \
+                        --only-matching=1 \
+                        --only-matching=2 \
+                        "$regexSampleRates" \
+                    | ased \
+                        --expression 's/.* ([0-9.]+)$/\1/' \
+                        --expression t \
+                        --expression "s/^.*\.mid .*\.sf2.*/$defaultSampleRate/"
+            )"
+            grepdInterpolations="$(
+                local defaultInterpolation=4
+                echo "$fileConfig" \
+                    | pcre2grep \
+                        --multiline \
+                        --only-matching=1 \
+                        --only-matching=2 \
+                        "$regexInterpolations" \
+                    | ased \
+                        --expression 's/.* ([0-5])/\1/' \
+                            --expression t \
+                        --expression 's/.* none$/0/' \
+                            --expression t \
+                        --expression 's/.* linear$/1/' \
+                            --expression t \
+                        --expression 's/.* (cubicSpline|cubic-spline)$/2/' \
+                            --expression t \
+                        --expression 's/.* lagrange$/3/' \
+                            --expression t \
+                        --expression 's/.* (newtonPolynomial|newton-polynomial)$/4/' \
+                            --expression t \
+                        --expression 's/.* (modifiedGauss|modified-gauss)$/5/' \
+                            --expression t \
+                        --expression "s/^.*\.mid .*\.sf2.*/$defaultInterpolation/" \
+            )"
+            grepdLoops="$(
+                local defaultLoop=0
+                echo "$fileConfig" \
+                    | pcre2grep \
+                        --multiline \
+                        --only-matching=1 \
+                        --only-matching=2 \
+                        "$regexLoops" \
+                    | ased \
+                        --expression 's/.* ([0-9]+)$/\1/' \
+                        --expression t \
+                        --expression "s/^.*\.mid .*\.sf2.*/$defaultLoop/"
+            )"
+            grepdLoopCutStarts="$(
+                local defaultLoopCutStart=0
+                echo "$fileConfig" \
+                    | pcre2grep \
+                        --multiline \
+                        --only-matching=1 \
+                        --only-matching=2 \
+                        "$regexLoopCutsStart" \
+                    | ased \
+                        --expression 's/.* ([0-9.]+)$/\1/' \
+                        --expression t \
+                        --expression "s/^.*\.mid .*\.sf2.*/$defaultLoopCutStart/"
+            )"
+            grepdLoopCutEnds="$(
+                echo "$fileConfig" \
+                    | pcre2grep \
+                        --multiline \
+                        --only-matching=2 \
+                        --only-matching=3 \
+                        "$regexLoopCutsEnd" \
+                    | ased \
+                        --expression 's/.* ([0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}[0-9.]+)*$/\1\2/' \
+                    | awk '{
+                        group1 = gensub(\
+                            /([0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}[0-9.]+)*/,
+                            "\\1",
+                            "g",
+                            $0 \
+                        )
+                        group2 = gensub( \
+                            /([0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}[0-9.]*)(-{1}([0-9.]+))*/,
+                            "\\3",
+                            "g",
+                            $0 \
+                        )
+                        if (group2 != "") {
+                            split(group1, time, ":");
+                            totalSeconds = \
+                                (time[1] * 3600) + \
+                                (time[2] * 60) + \
+                                time[3]
+                            difference = (totalSeconds - group2)
+
+                            hours = int(difference / 3600);
+                            minutes = int(difference / 60);
+                            remaining_seconds = \
+                                difference - (hours * 3600 + minutes * 60)
+
+                            formatted_seconds = sprintf(\
+                                "%.6f",
+                                remaining_seconds \
+                            )
+                            # Print in hh:mm:ss.ms format
+                            print \
+                                hours ":" \
+                                (minutes < 10 ? "0" : "") \
+                                minutes ":" \
+                                (int(formatted_seconds) < 10 ? "0" : "") \
+                                formatted_seconds;
+                        } else {
+                            print group1
                         }
-                        local durationInS
-                        durationInS="$(qalc --terse "$configValue to s")"
-                        local reducedDuration
-                        reducedDuration="$(qalc --terse "$durationInS $possibleConfigValue s to time")"
-                        configValue=$reducedDuration
-                    }
-                    allConfigLoopCutsEnd+=("$configValue")
-                }
-                # Checks if something's missing even
-                # even before the file read ends
-                [[ "$currentLine" == "$totalLines" ]] && {
-                    [[ -z "${allConfigGains[$whileIndex]}" ]] &&
-                        allConfigGains+=(30)
-                    [[ -z "${allConfigSampleRates[$whileIndex]}" ]] &&
-                        allConfigSampleRates+=(48000)
-                    [[ -z "${allConfigInterpolations[$whileIndex]}" ]] &&
-                        allConfigInterpolations+=(4)
-                    [[ -z "${allConfigLoops[$whileIndex]}" ]] &&
-                        allConfigLoops+=(0)
-                    [[ -z "${allConfigLoopCutsStart[$whileIndex]}" ]] &&
-                        allConfigLoopCutsStart+=(0)
-                    [[ -z "${allConfigLoopCutsEnd[$whileIndex]}" ]] &&
-                        allConfigLoopCutsEnd+=("no")
-                }
-            done < <(echo -e "$(cat "$arg")\n")
-        #       ↑ Pevents missing line at EOF ↑
+                    }'
+            )"
+            # shellcheck disable=2206
+            allConfigFilePaths=($grepdFilePaths)
+            # shellcheck disable=2206
+            allConfigGains=($grepdGains)
+            # shellcheck disable=2206
+            allConfigSampleRates=($grepdSampleRates)
+            # shellcheck disable=2206
+            allConfigInterpolations=($grepdInterpolations)
+            # shellcheck disable=2206
+            allConfigLoops=($grepdLoops)
+            # shellcheck disable=2206
+            allConfigLoopCutsStart=($grepdLoopCutStarts)
+            # shellcheck disable=2206
+            allConfigLoopCutsEnd=($grepdLoopCutEnds)
         #
         # —————— End of .cfg file reader ——————
         #
@@ -423,17 +449,11 @@ play_midis() (
             #
             [[ "$useConfig" == "true" ]] && {
                 [[ "$il" == "0" ]] && {
-                    ffmpegCommand=$(
-                        # shellcheck disable=SC2001
-                        echo "$ffmpegCommand" | sed 's/-ss [0-9:.]* //g'
-                    )
+                    ffmpegCommand="${ffmpegCommand/-ss [0-9:.]* -c/-c}"
                 }
                 [[ "$il" -gt 0 ]] && ffmpegCommand=$ffmpegCommandCopy
                 [[ "$il" == "$loop" ]] && {
-                    ffmpegCommand=$(
-                        # shellcheck disable=SC2001
-                        echo "$ffmpegCommand" | sed 's/-to [0-9:.]* //g'
-                    )
+                    ffmpegCommand="${ffmpegCommand/-to [0-9:.]* -f/-f}"
                 }
                 #
                 # wav is the only format that works here
@@ -485,28 +505,9 @@ play_midis() (
             [[ "$ii" == *.mid ]] && listOfFilesIndexes+=("$ii")
         done
     }
-    # User provided list of files inside a cfg file
-    [[ "$useConfig" == "true" ]] && {
-        # Loops the amount of songs and adds each file per song
-        # to the main array, "allFilesFromConfig" which then is set
-        # to listOfFiles for the next for loop below here
-        for s in "${allConfigFilePaths[@]}" ;do
-            OLDIFS=$IFS
-            IFS="="
-            set $s
-            # Done like this because this way
-            # it knows what index is in
-            # (see below for the IFS)
-            local allFilesFromConfig+=("$1=$2")
-            local allFilesFromConfig+=("$1=$3")
-            listOfFilesIndexes+=("$2")
-            IFS=$OLDIFS
-        done
-        listOfFiles=("${allFilesFromConfig[@]}")
-    }
+    [[ ! -z "$useConfig" ]] && listOfFiles+=("${allConfigFilePaths[@]}")
     local midi=""
     local soundfont=""
-    local if=0
     for f in "${listOfFiles[@]}" ;do
         # Skips to index
         [[ ! -z "$indexArg" ]] && {
@@ -530,24 +531,43 @@ play_midis() (
                 continue
             fi
         }
+        [[ "$useConfig" == "true" ]] && {
+            # In case it's a cfg file:
+            #   it changes the delimiter to an =,
+            #   gets the files and its current index,
+            #   plus how many loops to do
+            #
+            #   then it restores the IFS
+            local OLDIFS=$IFS
+            IFS="="
+            set $f
+            midi="$2"
+            soundfont="$3"
+            loop=${allConfigLoops[$1]}
+            local loopCutStart="${allConfigLoopCutsStart[$1]}"
+            local loopCutEnd="${allConfigLoopCutsEnd[$1]}"
+            ffmpegCommand="| \
+                ffmpeg \
+                    -hide_banner \
+                    -i - \
+                    -ss $loopCutStart \
+                    -c:a copy \
+                    -to $loopCutEnd \
+                    -f wav \
+                    pipe:1 2>/dev/null"
+            [[ "$loopCutStart" == "0" ]] &&
+            [[ ! "$loopCutEnd" =~ $regexLoopCutsEnd ]] && {
+                unset ffmpegCommand
+            }
+            IFS=$OLDIFS
+            addCommandToList
+            unset midi
+            unset soundfont
+            continue
+        }
         case "$f" in
             *.mid)
                 midi="$f"
-                [[ "$useConfig" == "true" ]] && {
-                    # In case it's a cfg file:
-                    #   it changes the delimiter to an =,
-                    #   gets the file and its current index,
-                    #   plus how many loops to do
-                    #
-                    #   then it restores the IFS
-                    local OLDIFS=$IFS
-                    IFS="="
-                    set $f
-                    midi="$2"
-                    indexOfConfigArray=$1
-                    loop=${allConfigLoops[$1]}
-                    IFS=$OLDIFS
-                }
                 [[ -z "$soundfont" ]] && continue
                 addCommandToList
                 unset midi
@@ -555,31 +575,6 @@ play_midis() (
             ;;
             *.sf2)
                 soundfont="$f"
-                [[ "$useConfig" == "true" ]] && {
-                    # Same as before
-                    local OLDIFS=$IFS
-                    IFS="="
-                    set $f
-                    soundfont="$2"
-                    indexOfConfigArray=$1
-                    loop=${allConfigLoops[$1]}
-                    local loopCutStart="${allConfigLoopCutsStart[$1]}"
-                    local loopCutEnd="${allConfigLoopCutsEnd[$1]}"
-                    IFS=$OLDIFS
-                    ffmpegCommand="| \
-                        ffmpeg \
-                            -hide_banner \
-                            -i - \
-                            -ss $loopCutStart \
-                            -c:a copy \
-                            -to $loopCutEnd \
-                            -f wav \
-                            pipe:1 2>/dev/null"
-                    [[ "$loopCutStart" == "0" ]] &&
-                    [[ ! "$loopCutEnd" =~ $regexLoopCutsEnd ]] && {
-                        unset ffmpegCommand
-                    }
-                }
                 [[ -z "$midi" ]] && continue
                 addCommandToList
                 unset midi
@@ -592,7 +587,8 @@ play_midis() (
         esac
     done
 
-    #echo $list; exit
+    #echo $list
+    #exit
     [[ -z "$list" ]] && {
         echo -e "${Yellow}Something is missing, forgot a soundfont/midi?${NORMAL}"
         return 1
