@@ -486,18 +486,34 @@ play_midis() (
     local listOfFiles=()
     local listOfFilesIndexes=()
     # Looks inside the provided folder/extracted archive directory for the files
-    while read -r lineOfFind ;do
-        [[ "$lineOfFind" == *.mid ]] && listOfFilesIndexes+=("$lineOfFind")
-        listOfFiles+=("$lineOfFind")
-    done < <(
-        [[ -z "$usersFileList" ]] &&
-        [[ -z "$useConfig" ]] &&
-            find "$location" \
-                -maxdepth 1 \
-                -iname '*.mid' \
-                -or \
-                -iname '*.sf2'
-    )
+    [[ -z "$usersFileList" ]] &&
+    [[ -z "$useConfig" ]] && {
+       mapfile -t listOfFilesIndexes < <(
+           find "$location" \
+               -maxdepth 1 \
+               -iname '*.mid'
+       )
+       mapfile -t listOfFiles < <(
+           local outputFind
+           outputFind="$(
+               find "$location" \
+                   -maxdepth 1 \
+                   -iname '*.mid' \
+                   -or \
+                   -iname '*.sf2'
+           )"
+           [[ $(echo "$outputFind" | "grep" --count ".*.sf2") == 1 ]] && {
+               echo "$outputFind" \
+                   | awk \
+                       --assign singleSf2="$(echo "$outputFind" | "grep" ".*.sf2")" \
+                   '/.*\.mid/ {
+                       print $0"\n"singleSf2
+                   }'
+               exit
+           }
+           echo "$outputFind"
+       )
+    }
     # User provided files
     [[ ! -z "$usersFileList" ]] && {
         listOfFiles=("${usersFileList[@]}")
