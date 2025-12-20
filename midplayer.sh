@@ -467,7 +467,13 @@ play_midis() (
                            --resample ${allConfigInterpolations[$indexOfConfigArray]} \
                            --interpolation gauss \
                            '$midi' 2>/dev/null \
-                       $ffmpegCommand || exit 4; "
+                       $ffmpegCommand || {
+                           if [[ \$? == 134 ]] ;then
+                               echo -e '${Yellow}WARNING: there might be errors with either your soundfonts or midis$NORMAL' >&2
+                           else
+                               exit 4
+                           fi
+                       }; "
                 continue
             }
             # shellcheck disable=2089
@@ -480,7 +486,13 @@ play_midis() (
                        --config-string \"soundfont '$soundfont'\" \
                        --resample $interpolation \
                        --interpolation gauss \
-                       '$midi' 2>/dev/null || exit 4; "
+                       '$midi' 2>/dev/null || {
+                           if [[ \$? == 134 ]] ;then
+                               echo -e '${Yellow}WARNING: there might be errors with either your soundfonts or midis$NORMAL' >&2
+                           else
+                               exit 4
+                           fi
+                       }; "
         done
     }
     local listOfFiles=()
