@@ -503,7 +503,8 @@ play_midis() (
        mapfile -t listOfFilesIndexes < <(
            find "$location" \
                -maxdepth 1 \
-               -iname '*.mid'
+               -iname '*.mid' \
+           | sort --version-sort
        )
        mapfile -t listOfFiles < <(
            local outputFind
@@ -512,7 +513,8 @@ play_midis() (
                    -maxdepth 1 \
                    -iname '*.mid' \
                    -or \
-                   -iname '*.sf2'
+                   -iname '*.sf2' \
+               | sort --version-sort
            )"
            [[ $(echo "$outputFind" | "grep" --count ".*.sf2") == 1 ]] && {
                echo "$outputFind" \
